@@ -843,7 +843,6 @@ void saadc_sampling_event_enable(void)
 {
     ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
     APP_ERROR_CHECK(err_code);
-    printf("saadc_sampling_event_enable!!!/n");
 }
 
 void saadc_sampling_event_disable(void)
@@ -856,14 +855,12 @@ void saadc_sampling_event_disable(void)
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
-    printf("pppppppppp\n");
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
         ret_code_t err_code;
         uint16_t adc_value;
         uint8_t value[SAADC_SAMPLES_IN_BUFFER*2];
         uint8_t bytes_to_send;
-        printf("testttttttttttttttttt\n");
 
         // set buffers
         err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAADC_SAMPLES_IN_BUFFER);
@@ -877,9 +874,12 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 
             adc_value = p_event->data.done.p_buffer[i];
             value[i*2] = adc_value;
-            value[(i*2)+1] = adc_value >> 8;
+            value[(i*2)+1] = adc_value >> 8; // adc_value 8bit right shift
         }
-        printf("%d\r\n", value);
+        printf("value[0]: %d\r\n", value[0]);
+        printf("value[1]: %d\r\n", value[1]);
+        printf("value[2]: %d\r\n", value[2]);
+        printf("value[3]: %d\r\n", value[3]);
         // Send data over BLE via NUS service. Makes sure not to send more than 20 bytes.
         if((SAADC_SAMPLES_IN_BUFFER*2) <= 20) 
         {
