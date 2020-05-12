@@ -156,10 +156,10 @@ static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;          
 // SAADC
 #define SAMPLES_IN_BUFFER 5
 #define SAADC_SAMPLES_IN_BUFFER 4
-#define SAADC_SAMPLE_RATE 250                                         /**< SAADC sample rate in ms. */           
+#define SAADC_SAMPLE_RATE 400 //250                                         /**< SAADC sample rate in ms. */           
 volatile uint8_t state = 1;
 
-static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(0);
+static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);  // NRF_DRV_TIMER_INSTANCE(0);
 static nrf_saadc_value_t     m_buffer_pool[2][SAMPLES_IN_BUFFER];
 static nrf_ppi_channel_t     m_ppi_channel;
 static uint32_t              m_adc_evt_counter;
@@ -300,15 +300,11 @@ static void nrf_qwr_error_handler(uint32_t nrf_error)
     APP_ERROR_HANDLER(nrf_error);
 }
 
-
-/**@brief Function for handling Service errors.
- *
- * @details A pointer to this function will be passed to each service which may need to inform the
- *          application about an error.
+/**@brief Function for handling advertising errors.
  *
  * @param[in] nrf_error  Error code containing information about what went wrong.
  */
-static void service_error_handler(uint32_t nrf_error)
+static void ble_advertising_error_handler(uint32_t nrf_error)
 {
     APP_ERROR_HANDLER(nrf_error);
 }
@@ -324,32 +320,43 @@ static void service_error_handler(uint32_t nrf_error)
 /**@snippet [Handling the data received over BLE] */
 static void nus_data_handler(ble_nus_evt_t * p_evt)
 {
-    if (p_evt->type == BLE_NUS_EVT_RX_DATA)
-    {
+    //if (p_evt->type == BLE_NUS_EVT_RX_DATA) {
+    switch(p_evt->type) {
         uint32_t err_code;
+        case BLE_NUS_EVT_RX_DATA:
 
-        NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
-        NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
+            NRF_LOG_DEBUG("Received data from BLE NUS. Writing data on UART.");
+            NRF_LOG_HEXDUMP_DEBUG(p_evt->params.rx_data.p_data, p_evt->params.rx_data.length);
 
-        for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
-        {
-            do
+            for (uint32_t i = 0; i < p_evt->params.rx_data.length; i++)
             {
-                err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
-                if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
+                do
                 {
-                    NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
-                    APP_ERROR_CHECK(err_code);
-                }
-            } while (err_code == NRF_ERROR_BUSY);
-        }
-        if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
-        {
-            while (app_uart_put('\n') == NRF_ERROR_BUSY);
-        }
+                    err_code = app_uart_put(p_evt->params.rx_data.p_data[i]);
+                    if ((err_code != NRF_SUCCESS) && (err_code != NRF_ERROR_BUSY))
+                    {
+                        NRF_LOG_ERROR("Failed receiving NUS message. Error 0x%x. ", err_code);
+                        APP_ERROR_CHECK(err_code);
+                    }
+                } while (err_code == NRF_ERROR_BUSY);
+            }
+            if (p_evt->params.rx_data.p_data[p_evt->params.rx_data.length - 1] == '\r')
+            {
+                while (app_uart_put('\n') == NRF_ERROR_BUSY);
+            }
+            break;
+        case BLE_NUS_EVT_TX_RDY:  /**< Service is ready to accept new data to be transmitted. */
+            printf("BLE_NUS_EVT_TX_RDY");
+            break;
+        case BLE_NUS_EVT_COMM_STARTED: /**< Notification has been enabled. */
+            printf("BLE_NUS_EVT_COMM_STARTED");
+            break;
+        case BLE_NUS_EVT_COMM_STOPPED: /**< Notification has been disabled. */
+            printf("BLE_NUS_EVT_COMM_STOPPED");
+            break;
     }
-
 }
+
 /**@snippet [Handling the data received over BLE] */
 
 
@@ -488,11 +495,13 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
     {
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected.");
+            printf("Disconnected.");
             // LED indication will be changed when advertising starts.
             break;
 
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected.");
+            printf("Connected.");
             err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
@@ -502,6 +511,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
         {
+            printf("PHY update request.");
             NRF_LOG_DEBUG("PHY update request.");
             ble_gap_phys_t const phys =
             {
@@ -513,6 +523,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         } break;
 
         case BLE_GATTC_EVT_TIMEOUT:
+            printf("GATT Client Timeout.");
             // Disconnect on GATT Client timeout event.
             NRF_LOG_DEBUG("GATT Client Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
@@ -521,6 +532,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 
         case BLE_GATTS_EVT_TIMEOUT:
+            printf("GATT Server Timeout.");
             // Disconnect on GATT Server timeout event.
             NRF_LOG_DEBUG("GATT Server Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
@@ -665,10 +677,14 @@ static void advertising_init(void)
     init.srdata.uuids_complete.uuid_cnt = sizeof(m_adv_uuids) / sizeof(m_adv_uuids[0]);
     init.srdata.uuids_complete.p_uuids  = m_adv_uuids;
 
+    init.config.ble_adv_whitelist_enabled = false;
     init.config.ble_adv_fast_enabled  = true;
     init.config.ble_adv_fast_interval = APP_ADV_INTERVAL;
     init.config.ble_adv_fast_timeout  = APP_ADV_DURATION;
-    init.evt_handler = on_adv_evt;
+    init.config.ble_adv_slow_enabled  = false;
+
+    init.evt_handler   = on_adv_evt;
+    init.error_handler = ble_advertising_error_handler;
 
     err_code = ble_advertising_init(&m_advertising, &init);
     APP_ERROR_CHECK(err_code);
@@ -757,6 +773,45 @@ void timer_handler(nrf_timer_event_t event_type, void * p_context)
 {
 }
 
+/*
+void saadc_sampling_event_init(void)
+{
+    ret_code_t err_code;
+
+    err_code = nrf_drv_ppi_init();
+    APP_ERROR_CHECK(err_code);
+
+    nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
+    timer_cfg.bit_width = NRF_TIMER_BIT_WIDTH_32;
+    err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, timer_handler);
+    APP_ERROR_CHECK(err_code);
+
+    // setup m_timer for compare event every 400ms
+    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
+    nrf_drv_timer_extended_compare(&m_timer,
+                                   NRF_TIMER_CC_CHANNEL1, // NRF_TIMER_CC_CHANNEL0,
+                                   ticks,
+                                   NRF_TIMER_SHORT_COMPARE1_CLEAR_MASK, // NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK,
+                                   false);
+    //nrf_drv_timer_enable(&m_timer);
+
+    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer,
+                                                                                NRF_TIMER_CC_CHANNEL1); // NRF_TIMER_CC_CHANNEL0
+    uint32_t saadc_sample_task_addr   = nrf_drv_saadc_sample_task_get();
+
+    // setup ppi channel so that timer compare event is triggering sample task in SAADC
+    err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
+    APP_ERROR_CHECK(err_code);
+
+    err_code = nrf_drv_ppi_channel_assign(m_ppi_channel,
+                                          timer_compare_event_addr,
+                                          saadc_sample_task_addr);
+    printf("saadc_sampling_event_init!!/n");
+    APP_ERROR_CHECK(err_code);
+}
+*/
+
+
 void saadc_sampling_event_init(void)
 {
     ret_code_t err_code;
@@ -768,15 +823,15 @@ void saadc_sampling_event_init(void)
     err_code = nrf_drv_timer_init(&m_timer, &timer_config, timer_handler);
     APP_ERROR_CHECK(err_code);
 
-    /* setup m_timer for compare event */
+    // setup m_timer for compare event
     uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, SAADC_SAMPLE_RATE);
-    nrf_drv_timer_extended_compare(&m_timer, NRF_TIMER_CC_CHANNEL0, ticks, NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK, false);
+    nrf_drv_timer_extended_compare(&m_timer, NRF_TIMER_CC_CHANNEL1, ticks, NRF_TIMER_SHORT_COMPARE1_CLEAR_MASK, false);
     nrf_drv_timer_enable(&m_timer);
 
-    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer, NRF_TIMER_CC_CHANNEL0);
+    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer, NRF_TIMER_CC_CHANNEL1);
     uint32_t saadc_sample_event_addr = nrf_drv_saadc_sample_task_get();
 
-    /* setup ppi channel so that timer compare event is triggering sample task in SAADC */
+    // setup ppi channel so that timer compare event is triggering sample task in SAADC
     err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
     APP_ERROR_CHECK(err_code);
     
@@ -787,20 +842,29 @@ void saadc_sampling_event_init(void)
 void saadc_sampling_event_enable(void)
 {
     ret_code_t err_code = nrf_drv_ppi_channel_enable(m_ppi_channel);
-
     APP_ERROR_CHECK(err_code);
+    printf("saadc_sampling_event_enable!!!/n");
+}
+
+void saadc_sampling_event_disable(void)
+{
+  ret_code_t err_code = nrf_drv_ppi_channel_disable(m_ppi_channel);
+  
+  APP_ERROR_CHECK(err_code);
 }
 
 
 void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
 {
+    printf("pppppppppp\n");
     if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
     {
         ret_code_t err_code;
         uint16_t adc_value;
         uint8_t value[SAADC_SAMPLES_IN_BUFFER*2];
         uint8_t bytes_to_send;
-     
+        printf("testttttttttttttttttt\n");
+
         // set buffers
         err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAADC_SAMPLES_IN_BUFFER);
         APP_ERROR_CHECK(err_code);
@@ -815,18 +879,20 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
             value[i*2] = adc_value;
             value[(i*2)+1] = adc_value >> 8;
         }
-				
+        printf("%d\r\n", value);
         // Send data over BLE via NUS service. Makes sure not to send more than 20 bytes.
         if((SAADC_SAMPLES_IN_BUFFER*2) <= 20) 
         {
             bytes_to_send = (SAADC_SAMPLES_IN_BUFFER*2);
+            printf("bytes_to_send: %d\r\n", bytes_to_send);
         }
-        else 
+        else
         {
             bytes_to_send = 20;
         }
 
         uint16_t length = (uint16_t)bytes_to_send;
+        printf("length: %d\r\n", length);
         err_code = ble_nus_data_send(&m_nus, value, &length, m_conn_handle);
         printf("err_code: %d", err_code);
         if (err_code != NRF_ERROR_INVALID_STATE) 
@@ -876,9 +942,9 @@ void saadc_init(void)
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN0);
     channel_0_config.gain = NRF_SAADC_GAIN1_4;
     channel_0_config.reference = NRF_SAADC_REFERENCE_VDD4;
-	
-    /*
-    nrf_saadc_channel_config_t channel_1_config =
+
+/*
+    nrf_saadc_channel_config_t channel_1_config = 
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN5);
     channel_1_config.gain = NRF_SAADC_GAIN1_4;
     channel_1_config.reference = NRF_SAADC_REFERENCE_VDD4;
@@ -891,25 +957,27 @@ void saadc_init(void)
     nrf_saadc_channel_config_t channel_3_config =
         NRF_DRV_SAADC_DEFAULT_CHANNEL_CONFIG_SE(NRF_SAADC_INPUT_AIN7);
     channel_3_config.gain = NRF_SAADC_GAIN1_4;
-    channel_3_config.reference = NRF_SAADC_REFERENCE_VDD4;				
-    */
+    channel_3_config.reference = NRF_SAADC_REFERENCE_VDD4;	
+*/
     err_code = nrf_drv_saadc_init(&saadc_config, saadc_callback);
     APP_ERROR_CHECK(err_code);
 
     err_code = nrf_drv_saadc_channel_init(0, &channel_0_config);
     APP_ERROR_CHECK(err_code);
-//    err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
-//    APP_ERROR_CHECK(err_code);
-//    err_code = nrf_drv_saadc_channel_init(2, &channel_2_config);
-//    APP_ERROR_CHECK(err_code);
-//    err_code = nrf_drv_saadc_channel_init(3, &channel_3_config);
-//    APP_ERROR_CHECK(err_code);	
-
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0],SAADC_SAMPLES_IN_BUFFER);
+/*
+    err_code = nrf_drv_saadc_channel_init(1, &channel_1_config);
+    APP_ERROR_CHECK(err_code);
+    err_code = nrf_drv_saadc_channel_init(2, &channel_2_config);
+    APP_ERROR_CHECK(err_code);
+    err_code = nrf_drv_saadc_channel_init(3, &channel_3_config);
+    APP_ERROR_CHECK(err_code);	
+*/
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[0], SAADC_SAMPLES_IN_BUFFER);
     APP_ERROR_CHECK(err_code);   
-    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1],SAADC_SAMPLES_IN_BUFFER);
+    err_code = nrf_drv_saadc_buffer_convert(m_buffer_pool[1], SAADC_SAMPLES_IN_BUFFER);
     APP_ERROR_CHECK(err_code);
 }
+
 
 /**@brief   Function for handling app_uart events.
  *
@@ -1009,6 +1077,7 @@ int main(void)
     uart_init();
     log_init();
     timers_init();
+
     buttons_leds_init(&erase_bonds);
     power_management_init();
     ble_stack_init();
@@ -1032,8 +1101,8 @@ int main(void)
     // Enter main loop.
     for (;;)
     {
-        // power_manage();
-        idle_state_handle();
+       // power_manage();
+       idle_state_handle();
     }
 }
 
