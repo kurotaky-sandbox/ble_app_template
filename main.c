@@ -156,7 +156,7 @@ static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;          
 // SAADC
 #define SAMPLES_IN_BUFFER 5
 #define SAADC_SAMPLES_IN_BUFFER 4
-#define SAADC_SAMPLE_RATE 400 //250                                         /**< SAADC sample rate in ms. */           
+#define SAADC_SAMPLE_RATE 100 //250                                         /**< SAADC sample rate in ms. */           
 volatile uint8_t state = 1;
 
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);  // NRF_DRV_TIMER_INSTANCE(0);
