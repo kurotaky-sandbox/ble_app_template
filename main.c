@@ -773,44 +773,6 @@ void timer_handler(nrf_timer_event_t event_type, void * p_context)
 {
 }
 
-/*
-void saadc_sampling_event_init(void)
-{
-    ret_code_t err_code;
-
-    err_code = nrf_drv_ppi_init();
-    APP_ERROR_CHECK(err_code);
-
-    nrf_drv_timer_config_t timer_cfg = NRF_DRV_TIMER_DEFAULT_CONFIG;
-    timer_cfg.bit_width = NRF_TIMER_BIT_WIDTH_32;
-    err_code = nrf_drv_timer_init(&m_timer, &timer_cfg, timer_handler);
-    APP_ERROR_CHECK(err_code);
-
-    // setup m_timer for compare event every 400ms
-    uint32_t ticks = nrf_drv_timer_ms_to_ticks(&m_timer, 400);
-    nrf_drv_timer_extended_compare(&m_timer,
-                                   NRF_TIMER_CC_CHANNEL1, // NRF_TIMER_CC_CHANNEL0,
-                                   ticks,
-                                   NRF_TIMER_SHORT_COMPARE1_CLEAR_MASK, // NRF_TIMER_SHORT_COMPARE0_CLEAR_MASK,
-                                   false);
-    //nrf_drv_timer_enable(&m_timer);
-
-    uint32_t timer_compare_event_addr = nrf_drv_timer_compare_event_address_get(&m_timer,
-                                                                                NRF_TIMER_CC_CHANNEL1); // NRF_TIMER_CC_CHANNEL0
-    uint32_t saadc_sample_task_addr   = nrf_drv_saadc_sample_task_get();
-
-    // setup ppi channel so that timer compare event is triggering sample task in SAADC
-    err_code = nrf_drv_ppi_channel_alloc(&m_ppi_channel);
-    APP_ERROR_CHECK(err_code);
-
-    err_code = nrf_drv_ppi_channel_assign(m_ppi_channel,
-                                          timer_compare_event_addr,
-                                          saadc_sample_task_addr);
-    printf("saadc_sampling_event_init!!/n");
-    APP_ERROR_CHECK(err_code);
-}
-*/
-
 
 void saadc_sampling_event_init(void)
 {
@@ -895,41 +857,18 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         printf("length: %d\r\n", length);
         err_code = ble_nus_data_send(&m_nus, value, &length, m_conn_handle);
         printf("err_code: %d", err_code);
+        
+        
+        /*
         if (err_code != NRF_ERROR_INVALID_STATE) 
         {
             APP_ERROR_CHECK(err_code);
         }
+        */
         m_adc_evt_counter++;
     }
 }
 
-/*
-void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
-{
-    if (p_event->type == NRF_DRV_SAADC_EVT_DONE)
-    {
-        ret_code_t err_code;
-
-        // non-blocking mode convert 
-        // https://infocenter.nordicsemi.com/index.jsp?topic=%2Fcom.nordic.infocenter.sdk5.v11.0.0%2Fgroup__nrf__saadc__hal.html
-        err_code = nrf_drv_saadc_buffer_convert(p_event->data.done.p_buffer, SAMPLES_IN_BUFFER);
-        APP_ERROR_CHECK(err_code);
-
-        int i;
-        NRF_LOG_INFO("ADC event number: %d", (int)m_adc_evt_counter);
-        printf("ADC event number: %d\n", (int)m_adc_evt_counter);
-
-        printf("SAMPLES_IN_BUFFER: %d\n", SAMPLES_IN_BUFFER);
-        for (i = 0; i < SAMPLES_IN_BUFFER; i++)
-        {
-            NRF_LOG_INFO("%d", p_event->data.done.p_buffer[i]);
-            printf("p_event %d  ", i);
-            printf("p_buffer: %d\n", p_event->data.done.p_buffer[i]);
-        }
-        m_adc_evt_counter++;
-    }
-}
-*/
 
 void saadc_init(void)
 {
@@ -979,107 +918,18 @@ void saadc_init(void)
 }
 
 
-/**@brief   Function for handling app_uart events.
- *
- * @details This function will receive a single character from the app_uart module and append it to
- *          a string. The string will be be sent over BLE when the last character received was a
- *          'new line' '\n' (hex 0x0A) or if the string has reached the maximum data length.
- */
-/**@snippet [Handling the data received over UART] */
-void uart_event_handle(app_uart_evt_t * p_event)
-{
-    static uint8_t data_array[BLE_NUS_MAX_DATA_LEN];
-    static uint8_t index = 0;
-    uint32_t       err_code;
-
-    switch (p_event->evt_type)
-    {
-        case APP_UART_DATA_READY:
-            UNUSED_VARIABLE(app_uart_get(&data_array[index]));
-            index++;
-
-            if ((data_array[index - 1] == '\n') ||
-                (data_array[index - 1] == '\r') ||
-                (index >= m_ble_nus_max_data_len))
-            {
-                if (index > 1)
-                {
-                    NRF_LOG_DEBUG("Ready to send data over BLE NUS");
-                    NRF_LOG_HEXDUMP_DEBUG(data_array, index);
-
-                    do
-                    {
-                        uint16_t length = (uint16_t)index;
-                        err_code = ble_nus_data_send(&m_nus, data_array, &length, m_conn_handle);
-                        if ((err_code != NRF_ERROR_INVALID_STATE) &&
-                            (err_code != NRF_ERROR_RESOURCES) &&
-                            (err_code != NRF_ERROR_NOT_FOUND))
-                        {
-                            APP_ERROR_CHECK(err_code);
-                        }
-                    } while (err_code == NRF_ERROR_RESOURCES);
-                }
-
-                index = 0;
-            }
-            break;
-
-        case APP_UART_COMMUNICATION_ERROR:
-            APP_ERROR_HANDLER(p_event->data.error_communication);
-            break;
-
-        case APP_UART_FIFO_ERROR:
-            APP_ERROR_HANDLER(p_event->data.error_code);
-            break;
-
-        default:
-            break;
-    }
-}
-/**@snippet [Handling the data received over UART] */
-
-
-/**@brief  Function for initializing the UART module.
- */
-/**@snippet [UART Initialization] */
-static void uart_init(void)
-{
-    uint32_t                     err_code;
-    app_uart_comm_params_t const comm_params =
-    {
-        .rx_pin_no    = RX_PIN_NUMBER,
-        .tx_pin_no    = TX_PIN_NUMBER,
-        .rts_pin_no   = RTS_PIN_NUMBER,
-        .cts_pin_no   = CTS_PIN_NUMBER,
-        .flow_control = APP_UART_FLOW_CONTROL_DISABLED,
-        .use_parity   = false,
-        .baud_rate    = NRF_UART_BAUDRATE_115200
-    };
-
-    APP_UART_FIFO_INIT(&comm_params,
-                       UART_RX_BUF_SIZE,
-                       UART_TX_BUF_SIZE,
-                       uart_event_handle,
-                       APP_IRQ_PRIORITY_LOWEST,
-                       err_code);
-    APP_ERROR_CHECK(err_code);
-}
-/**@snippet [UART Initialization] */
-
-
 /**@brief Function for application main entry.
  */
 int main(void)
 {
     bool erase_bonds;
 
-    // Initialize.
-    uart_init();
     log_init();
     timers_init();
 
     buttons_leds_init(&erase_bonds);
     power_management_init();
+
     ble_stack_init();
     gap_params_init();  
     gatt_init();
