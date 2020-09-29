@@ -117,8 +117,8 @@
 #define CONN_CFG_TAG                    1                                       /**< A tag that refers to the BLE stack configuration we set with @ref sd_ble_cfg_set. Default tag is @ref BLE_CONN_CFG_TAG_DEFAULT. */
 #define TEMP_TYPE_AS_CHARACTERISTIC     0                                       /**< Determines if temperature type is given as characteristic (1) or as a field of measurement (0). */
 
-#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(10, UNIT_1_25_MS)        /**< Minimum acceptable connection interval (0.1 seconds). */
-#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(20, UNIT_1_25_MS)        /**< Maximum acceptable connection interval (0.2 second). */
+#define MIN_CONN_INTERVAL               MSEC_TO_UNITS(7.5, UNIT_1_25_MS)        /**< Minimum acceptable connection interval (0.1 seconds). */
+#define MAX_CONN_INTERVAL               MSEC_TO_UNITS(10, UNIT_1_25_MS)        /**< Maximum acceptable connection interval (0.2 second). */
 #define SLAVE_LATENCY                   0                                       /**< Slave latency. */
 #define CONN_SUP_TIMEOUT                MSEC_TO_UNITS(4000, UNIT_10_MS)         /**< Connection supervisory timeout (4 seconds). */
 
@@ -156,7 +156,7 @@ static uint16_t m_ble_nus_max_data_len = BLE_GATT_ATT_MTU_DEFAULT - 3;          
 // SAADC
 #define SAMPLES_IN_BUFFER 5
 #define SAADC_SAMPLES_IN_BUFFER 4
-#define SAADC_SAMPLE_RATE 100 //250                                         /**< SAADC sample rate in ms. */           
+#define SAADC_SAMPLE_RATE 10 //250                                         /**< SAADC sample rate in ms. */           
 volatile uint8_t state = 1;
 
 static const nrf_drv_timer_t m_timer = NRF_DRV_TIMER_INSTANCE(1);  // NRF_DRV_TIMER_INSTANCE(0);
@@ -346,13 +346,13 @@ static void nus_data_handler(ble_nus_evt_t * p_evt)
             }
             break;
         case BLE_NUS_EVT_TX_RDY:  /**< Service is ready to accept new data to be transmitted. */
-            printf("BLE_NUS_EVT_TX_RDY");
+            NRF_LOG_INFO("BLE_NUS_EVT_TX_RDY");
             break;
         case BLE_NUS_EVT_COMM_STARTED: /**< Notification has been enabled. */
-            printf("BLE_NUS_EVT_COMM_STARTED");
+            NRF_LOG_INFO("BLE_NUS_EVT_COMM_STARTED");
             break;
         case BLE_NUS_EVT_COMM_STOPPED: /**< Notification has been disabled. */
-            printf("BLE_NUS_EVT_COMM_STOPPED");
+            NRF_LOG_INFO("BLE_NUS_EVT_COMM_STOPPED");
             break;
     }
 }
@@ -495,13 +495,13 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
     {
         case BLE_GAP_EVT_DISCONNECTED:
             NRF_LOG_INFO("Disconnected.");
-            printf("Disconnected.");
+            NRF_LOG_INFO("Disconnected.");
             // LED indication will be changed when advertising starts.
             break;
 
         case BLE_GAP_EVT_CONNECTED:
             NRF_LOG_INFO("Connected.");
-            printf("Connected.");
+            NRF_LOG_INFO("Connected.");
             err_code = bsp_indication_set(BSP_INDICATE_CONNECTED);
             APP_ERROR_CHECK(err_code);
             m_conn_handle = p_ble_evt->evt.gap_evt.conn_handle;
@@ -511,7 +511,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
 
         case BLE_GAP_EVT_PHY_UPDATE_REQUEST:
         {
-            printf("PHY update request.");
+            NRF_LOG_INFO("PHY update request.");
             NRF_LOG_DEBUG("PHY update request.");
             ble_gap_phys_t const phys =
             {
@@ -523,7 +523,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
         } break;
 
         case BLE_GATTC_EVT_TIMEOUT:
-            printf("GATT Client Timeout.");
+            NRF_LOG_INFO("GATT Client Timeout.");
             // Disconnect on GATT Client timeout event.
             NRF_LOG_DEBUG("GATT Client Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gattc_evt.conn_handle,
@@ -532,7 +532,7 @@ static void ble_evt_handler(ble_evt_t const * p_ble_evt, void * p_context)
             break;
 
         case BLE_GATTS_EVT_TIMEOUT:
-            printf("GATT Server Timeout.");
+            NRF_LOG_INFO("GATT Server Timeout.");
             // Disconnect on GATT Server timeout event.
             NRF_LOG_DEBUG("GATT Server Timeout.");
             err_code = sd_ble_gap_disconnect(p_ble_evt->evt.gatts_evt.conn_handle,
@@ -829,24 +829,24 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         APP_ERROR_CHECK(err_code);
 						
         // print samples on hardware UART and parse data for BLE transmission
-        printf("ADC event number: %d\r\n",(int)m_adc_evt_counter);
+        NRF_LOG_INFO("ADC event number: %d\r\n",(int)m_adc_evt_counter);
         for (int i = 0; i < SAADC_SAMPLES_IN_BUFFER; i++)
         {
-            printf("%d\r\n", p_event->data.done.p_buffer[i]);
+            NRF_LOG_INFO("%d\r\n", p_event->data.done.p_buffer[i]);
 
             adc_value = p_event->data.done.p_buffer[i];
             value[i*2] = adc_value;
             value[(i*2)+1] = adc_value >> 8; // adc_value 8bit right shift
         }
-        printf("value[0]: %d\r\n", value[0]);
-        printf("value[1]: %d\r\n", value[1]);
-        printf("value[2]: %d\r\n", value[2]);
-        printf("value[3]: %d\r\n", value[3]);
+        NRF_LOG_INFO("value[0]: %d\r\n", value[0]);
+        NRF_LOG_INFO("value[1]: %d\r\n", value[1]);
+        NRF_LOG_INFO("value[2]: %d\r\n", value[2]);
+        NRF_LOG_INFO("value[3]: %d\r\n", value[3]);
         // Send data over BLE via NUS service. Makes sure not to send more than 20 bytes.
         if((SAADC_SAMPLES_IN_BUFFER*2) <= 20) 
         {
             bytes_to_send = (SAADC_SAMPLES_IN_BUFFER*2);
-            printf("bytes_to_send: %d\r\n", bytes_to_send);
+            NRF_LOG_INFO("bytes_to_send: %d\r\n", bytes_to_send);
         }
         else
         {
@@ -854,9 +854,9 @@ void saadc_callback(nrf_drv_saadc_evt_t const * p_event)
         }
 
         uint16_t length = (uint16_t)bytes_to_send;
-        printf("length: %d\r\n", length);
+        NRF_LOG_INFO("length: %d\r\n", length);
         err_code = ble_nus_data_send(&m_nus, value, &length, m_conn_handle);
-        printf("err_code: %d", err_code);
+        NRF_LOG_INFO("err_code: %d", err_code);
         
         
         /*
@@ -923,7 +923,7 @@ void saadc_init(void)
 int main(void)
 {
     bool erase_bonds;
-
+    NRF_LOG_INFO("\r\ntest!!!!!!\r\n");
     log_init();
     timers_init();
 
@@ -944,7 +944,7 @@ int main(void)
     NRF_LOG_INFO("SAADC HAL simple example started.");
 
     // Start execution.
-    printf("\r\nUART Start!\r\n");
+    NRF_LOG_INFO("\r\nUART Start!\r\n");
     NRF_LOG_INFO("UART Start!\r\n");
     advertising_start(erase_bonds);
 
